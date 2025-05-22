@@ -1,14 +1,19 @@
 use std::{
     fs::File,
     io::{BufRead, BufReader},
-    path::PathBuf
+    path::{Path, PathBuf},
 };
 use serde::{ser::SerializeStruct, Serialize, Serializer};
 
 
 fn main() {
     let dict_file = PathBuf::from("assets/words_alpha.txt");
-    let mut dict_reader = BufReader::new(File::open(&dict_file).unwrap());
+    let root = load_dictionary_from_txt(&dict_file);
+    println!("{}", root.usages());
+}
+
+fn load_dictionary_from_txt(dict_file: &Path) -> Node {
+    let mut dict_reader = BufReader::new(File::open(dict_file).unwrap());
     let mut count = 0;
     let mut buf = String::with_capacity(32);
     let mut root = Node::new(0u8);
@@ -20,15 +25,9 @@ fn main() {
         buf.clear();
         count += 1;
     }
-    let mut node = &root;
-    while !node.next.is_empty() {
-        node = node.next.iter().max_by(|x, y| x.next_count.cmp(&y.next_count)).unwrap();
-        println!("{}", &char::from_u32(node.c as u32).unwrap());
-    }
-        
-//    println!("read {count} words");
-//    println!("{}", serde_json::to_string_pretty(&root).unwrap());
+    root
 }
+
 
 struct Node {
     c: u8,
@@ -62,7 +61,6 @@ impl Node {
         self.next_count += 1;
         self.next_usage += 1;
         let index = self.next.iter().position(|n| n.c == c).unwrap_or_else(|| {
-//            println!("{} -> {c}", self.c);
             let node = Node::new(c);
             self.next.push(node);
             self.next.len() - 1
