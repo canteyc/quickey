@@ -4,20 +4,7 @@ use std::{
     io::{BufRead, BufReader},
     path::Path,
 };
-
-pub fn load_dictionary_from_txt(dict_file: &Path) -> Node {
-    let mut dict_reader = BufReader::new(File::open(dict_file).unwrap());
-    let mut buf = String::with_capacity(32);
-    let mut root = Node::new(0u8);
-    while dict_reader.read_line(&mut buf).is_ok_and(|s| s > 0) {
-        let mut node = &mut root;
-        for char in buf.as_bytes() {
-            node = node.link(*char);
-        }
-        buf.clear();
-    }
-    root
-}
+use crate::math::frac;
 
 pub struct Node {
     c: u8,
@@ -42,6 +29,20 @@ impl Node {
             next_usage: 0,
             next: Default::default(),
         }
+    }
+    
+    pub fn load_dictionary_from_txt(dict_file: &Path) -> Node {
+        let mut dict_reader = BufReader::new(File::open(dict_file).unwrap());
+        let mut buf = String::with_capacity(32);
+        let mut root = Node::new(0u8);
+        while dict_reader.read_line(&mut buf).is_ok_and(|s| s > 0) {
+            let mut node = &mut root;
+            for char in buf.as_bytes() {
+                node = node.link(*char);
+            }
+            buf.clear();
+        }
+        root
     }
 
     pub fn char(&self) -> char {
