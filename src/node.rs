@@ -1,0 +1,129 @@
+use serde::{Serialize, Serializer, ser::SerializeStruct};
+use std::{
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+};
+
+pub fn load_dictionary_from_txt(dict_file: &Path) -> Node {
+    let mut dict_reader = BufReader::new(File::open(dict_file).unwrap());
+    let mut buf = String::with_capacity(32);
+    let mut root = Node::new(0u8);
+    while dict_reader.read_line(&mut buf).is_ok_and(|s| s > 0) {
+        let mut node = &mut root;
+        for char in buf.as_bytes() {
+            node = node.link(*char);
+        }
+        buf.clear();
+    }
+    root
+}
+
+pub struct Node {
+    c: u8,
+    usage: u16,
+    next_count: u32,
+    next_usage: u32,
+    next: Vec<Node>,
+}
+
+pub struct SortedSliceIterator<'a, T: PartialOrd> {
+    slice: &'a [T],
+    order: Vec<usize>,
+    current: usize,
+}
+
+impl Node {
+    pub fn new(c: u8) -> Self {
+        Self {
+            c,
+            usage: 1,
+            next_count: 0,
+            next_usage: 0,
+            next: Default::default(),
+        }
+    }
+
+    pub fn char(&self) -> char {
+        char::from_u32(self.c as u32).unwrap()
+    }
+
+    pub fn link(&mut self, c: u8) -> &mut Node {
+        self.next_count += 1;
+        self.next_usage += 1;
+        let index = self.next.iter().position(|n| n.c == c).unwrap_or_else(|| {
+            let node = Node::new(c);
+            self.next.push(node);
+            self.next.len() - 1
+        });
+        self.next.get_mut(index).unwrap()
+    }
+
+    pub fn usages(&self) -> u32 {
+        self.usage as u32 + self.next_usage
+    }
+
+    pub fn children(&self) -> SortedSliceIterator<Node> {
+        SortedSliceIterator::new(&self.next)
+    }
+}
+
+impl Serialize for Node {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Node", 5)?;
+        state.serialize_field("c", &self.char())?;
+        state.serialize_field("usage", &self.usage)?;
+        state.serialize_field("next_count", &self.next_count)?;
+        state.serialize_field("next_usage", &self.next_usage)?;
+        state.serialize_field("next", &self.next)?;
+        state.end()
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.usages().eq(&other.usages())
+    }
+}
+
+impl PartialOrd for Node {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.usages().partial_cmp(&other.usages())
+    }
+}
+
+impl<'a, T: PartialOrd> SortedSliceIterator<'a, T> {
+    pub fn new(slice: &'a [T]) -> Self {
+        let mut order: Vec<usize> = (0..slice.len()).collect();
+        order.sort_unstable_by(|a, b| -> std::cmp::Ordering {
+            let t_a = slice.get(*a).unwrap();
+            let t_b = slice.get(*b).unwrap();
+            t_b.partial_cmp(t_a).unwrap()
+        });
+        Self {
+            slice,
+            order,
+            current: 0,
+        }
+    }
+}
+
+impl<'a, T: PartialOrd> Iterator for SortedSliceIterator<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.order.len() {
+            None
+        } else {
+            let n = self
+                .slice
+                .get(*self.order.get(self.current).unwrap())
+                .unwrap();
+            self.current += 1;
+            Some(n)
+        }
+    }
+}
