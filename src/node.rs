@@ -1,10 +1,10 @@
-use serde::{Serialize, Serializer, ser::SerializeStruct};
+use crate::math::frac;
+use serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize, Serializer};
 use std::{
     fs::File,
     io::{BufRead, BufReader},
     path::Path,
 };
-use crate::math::frac;
 
 pub struct Node {
     c: u8,
@@ -30,7 +30,7 @@ impl Node {
             next: Default::default(),
         }
     }
-    
+
     pub fn load_dictionary_from_txt(dict_file: &Path) -> Node {
         let mut dict_reader = BufReader::new(File::open(dict_file).unwrap());
         let mut buf = String::with_capacity(32);
@@ -43,6 +43,10 @@ impl Node {
             buf.clear();
         }
         root
+    }
+
+    pub fn load_dictionary_from_json(dict_json: &Path) -> Node {
+        serde_json::from_reader(BufReader::new(File::open(dict_json).unwrap())).unwrap()
     }
 
     pub fn char(&self) -> char {
@@ -81,6 +85,46 @@ impl Serialize for Node {
         state.serialize_field("next_usage", &self.next_usage)?;
         state.serialize_field("next", &self.next)?;
         state.end()
+    }
+}
+
+struct NodeVisitor;
+
+impl<'de> Visitor<'de> for NodeVisitor {
+    type Value = Node;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a node struct")
+    }
+
+    fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::MapAccess<'de>, {
+        let mut c = None;
+        let mut usage = None;
+        let mut next_count = None;
+        let mut next_usage = None;
+        let mut next = None;
+        while let Some((key, value)) = map.next_entry()? {
+            match key {
+                "c" => c = Some(value),
+                "usage" => usage = Some(value),
+                "next_count" => next_count = Some(value),
+                "next_usage" => next_usage = Some(value),
+                "next" => next = Some(value),
+                _ => return Err(A::Error::custom(key))
+            }
+        }
+        let node = c.ok_or(A::Error)
+    }
+}
+
+impl<'de> Deserialize<'de> for Node {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        todo!()
     }
 }
 
