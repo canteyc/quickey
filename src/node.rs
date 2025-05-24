@@ -1,5 +1,9 @@
 use crate::math::frac;
-use serde::{de::Visitor, ser::SerializeStruct, Deserialize, Serialize, Serializer};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    de::{Error, MapAccess, Visitor},
+    ser::SerializeStruct,
+};
 use std::{
     fs::File,
     io::{BufRead, BufReader},
@@ -88,43 +92,82 @@ impl Serialize for Node {
     }
 }
 
-struct NodeVisitor;
-
-impl<'de> Visitor<'de> for NodeVisitor {
-    type Value = Node;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(formatter, "a node struct")
-    }
-
-    fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
-        where
-            A: serde::de::MapAccess<'de>, {
-        let mut c = None;
-        let mut usage = None;
-        let mut next_count = None;
-        let mut next_usage = None;
-        let mut next = None;
-        while let Some((key, value)) = map.next_entry()? {
-            match key {
-                "c" => c = Some(value),
-                "usage" => usage = Some(value),
-                "next_count" => next_count = Some(value),
-                "next_usage" => next_usage = Some(value),
-                "next" => next = Some(value),
-                _ => return Err(A::Error::custom(key))
-            }
-        }
-        let node = c.ok_or(A::Error)
-    }
-}
-
 impl<'de> Deserialize<'de> for Node {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        todo!()
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "lowercase")]
+        enum Field {
+            C,
+            Usage,
+            NextCount,
+            NextUsage,
+            Next,
+        }
+
+        struct NodeVisitor;
+
+        impl<'de> Visitor<'de> for NodeVisitor {
+            type Value = Node;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("node struct")
+            }
+            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+            where
+                A: MapAccess<'de>,
+            {
+                let mut c = None;
+                let mut usage = None;
+                let mut next_count = None;
+                let mut next_usage = None;
+                let mut next = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::C => {
+                            if c.is_some() {
+                                return Err(A::Error::duplicate_field("c"));
+                            }
+                            c = Some(map.next_value()?);
+                        }
+                        Field::Usage => {
+                            if usage.is_some() {
+                                return Err(A::Error::duplicate_field("usage"));
+                            }
+                            usage = Some(map.next_value()?);
+                        }
+                        Field::NextCount => {
+                            if next_count.is_some() {
+                                return Err(A::Error::duplicate_field("next_count"));
+                            }
+                            next_count = Some(map.next_value()?);
+                        }
+                        Field::NextUsage => {
+                            if next_usage.is_some() {
+                                return Err(A::Error::duplicate_field("next_usage"));
+                            }
+                            next_usage = Some(map.next_value()?);
+                        }
+                        Field::Next => {
+                            if next.is_some() {
+                                return Err(A::Error::duplicate_field("next"));
+                            }
+                            next = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let mut node = Node::new(c.ok_or(A::Error::missing_field("c"))?);
+                node.usage = usage.ok_or(A::Error::missing_field("usage"))?;
+                node.next_count = next_count.ok_or(A::Error::missing_field("next_count"))?;
+                node.next_usage = next_usage.ok_or(A::Error::missing_field("next_usage"))?;
+                node.next = next.ok_or(A::Error::missing_field("next"))?;
+
+                Ok(node)
+            }
+        }
+        deserializer.deserialize_map(NodeVisitor {})
     }
 }
 
