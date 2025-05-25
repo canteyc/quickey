@@ -40,10 +40,7 @@ impl Node {
         let mut buf = String::with_capacity(32);
         let mut root = Node::new(0u8);
         while dict_reader.read_line(&mut buf).is_ok_and(|s| s > 0) {
-            let mut node = &mut root;
-            for char in buf.as_bytes() {
-                node = node.link(*char);
-            }
+            root.add_usages(&buf, 1);
             buf.clear();
         }
         root
@@ -53,13 +50,27 @@ impl Node {
         serde_json::from_reader(BufReader::new(File::open(dict_json).unwrap())).unwrap()
     }
 
+    pub fn load_dictionary_from_csv(dict_csv: &Path) -> Node {
+        let mut dict_reader = BufReader::new(File::open(dict_csv).unwrap());
+        let mut buf = String::with_capacity(64);
+        dict_reader.read_line(&mut buf).unwrap();
+        buf.clear();
+        let mut root = Node::new(0u8);
+        while dict_reader.read_line(&mut buf).is_ok_and(|s| s > 0) {
+            let (word, usage) = buf.strip_suffix("\n").unwrap().split_once(", ").unwrap();
+            let usage = str::parse(usage).unwrap();
+            root.add_usages(word, usage);
+            buf.clear();
+        }
+        root
+    }
+
     pub fn char(&self) -> char {
         char::from_u32(self.c as u32).unwrap()
     }
 
     pub fn link(&mut self, c: u8) -> &mut Node {
         self.next_count += 1;
-        self.next_usage += 1;
         let index = self.next.iter().position(|n| n.c == c).unwrap_or_else(|| {
             let node = Node::new(c);
             self.next.push(node);
@@ -74,6 +85,15 @@ impl Node {
 
     pub fn children(&self) -> SortedSliceIterator<Node> {
         SortedSliceIterator::new(&self.next)
+    }
+
+    pub fn add_usages(&mut self, word: &str, usage: u16) {
+        let mut node = self;
+        for ch in word.bytes() {
+            node.next_usage += usage as u32;
+            node = node.link(ch);
+        }
+        node.usage += usage;
     }
 }
 
@@ -98,7 +118,7 @@ impl<'de> Deserialize<'de> for Node {
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
-        #[serde(field_identifier, rename_all = "lowercase")]
+        #[serde(field_identifier, rename_all = "snake_case")]
         enum Field {
             C,
             Usage,
@@ -130,7 +150,8 @@ impl<'de> Deserialize<'de> for Node {
                             if c.is_some() {
                                 return Err(A::Error::duplicate_field("c"));
                             }
-                            c = Some(map.next_value()?);
+                            let s: String = map.next_value()?;
+                            c = Some(s.bytes().next().unwrap());
                         }
                         Field::Usage => {
                             if usage.is_some() {
