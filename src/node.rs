@@ -69,7 +69,7 @@ impl Node {
         char::from_u32(self.c as u32).unwrap()
     }
 
-    pub fn link(&mut self, c: u8) -> &mut Node {
+    fn link(&mut self, c: u8) -> &mut Node {
         self.next_count += 1;
         let index = self.next.iter().position(|n| n.c == c).unwrap_or_else(|| {
             let node = Node::new(c);
