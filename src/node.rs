@@ -8,7 +8,7 @@ use serde::{
     ser::SerializeStruct,
 };
 use std::{
-    fs::File,
+    fs::{File, write},
     io::{BufRead, BufReader},
     path::Path,
 };
@@ -24,7 +24,7 @@ fn predict(root: &Node, points: Vec<(f32, f32)>) -> Vec<String> {
                 if child.c.eq(&k.ch) {
                     let average_next_usage = frac(child.next_usage, child.next_count) as u32;
                     Some((
-                        frac(child.usage as u32, average_next_usage) as f32 * d,
+                        frac(child.usage as u32, average_next_usage) as f32 * (10.0f32 - d),
                         child,
                     ))
                 } else {
@@ -33,8 +33,7 @@ fn predict(root: &Node, points: Vec<(f32, f32)>) -> Vec<String> {
             });
             p.map(|p| (k, p.0, p.1))
         });
-        dbg!(&probs);
-        if let Some((key, _, child)) = probs.max_by(|a, b| cmp_f32(b.1, a.1)) {
+        if let Some((key, _, child)) = probs.max_by(|a, b| cmp_f32(a.1, b.1)) {
             buf.push(char::from_u32(key.ch as u32).unwrap());
             node = child;
         }
@@ -308,7 +307,6 @@ mod test {
         let a = keyboard::ALPHA[10];
         let b = keyboard::ALPHA[23];
         let hints = predict(&root, vec![(a.x, a.y), (b.x, b.y)]);
-
         assert_eq!(hints[0], "an");
     }
 }
