@@ -1,9 +1,9 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Key {
-    ch: u8,
-    shifted: u8,
-    x: f32,
-    y: f32,
+    pub ch: u8,
+    pub shifted: u8,
+    pub x: f32,
+    pub y: f32,
 }
 
 pub const ALPHA: [Key; 26] = [
@@ -212,9 +212,59 @@ pub fn distance_sq(key: &Key, x: f32, y: f32) -> f32 {
 }
 
 pub fn nearest(keys: &[Key], x: f32, y: f32) -> Key {
-    distances(keys, x, y)
-        .iter()
-        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less))
-        .unwrap()
-        .0
+    sorted_distances(keys, x, y)[0].0
+}
+
+pub fn sorted_distances(keys: &[Key], x: f32, y: f32) -> Vec<(Key, f32)> {
+    let mut dist = distances(keys, x, y);
+    dist.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Less));
+    dist
+}
+
+#[cfg(test)]
+mod test {
+    use crate::keyboard::sorted_distances;
+
+    use super::{ALPHA, nearest};
+
+    #[test]
+    fn nearest_on_key() {
+        let touch = (3.2f32, 1.0f32); // f key
+        let dist = nearest(&ALPHA, touch.0, touch.1);
+        assert_eq!(dist, ALPHA[13]);
+    }
+
+    #[test]
+    fn nearest_on_row() {
+        let touch = (3.0f32, 1.0f32); // between d and f key
+        let dist = nearest(&ALPHA, touch.0, touch.1);
+        assert_eq!(dist, ALPHA[13]);
+    }
+
+    #[test]
+    fn nearest_between_rows() {
+        let touch = (3.0f32, 0.8f32); // f key
+        let dist = nearest(&ALPHA, touch.0, touch.1);
+        assert_eq!(dist, ALPHA[13]);
+    }
+
+    #[test]
+    fn distances() {
+        let touch = (3.0f32, 0.9f32); // f key
+        let dist = sorted_distances(&ALPHA, touch.0, touch.1);
+        assert_eq!(dist[0].0, ALPHA[13]);
+        assert!((dist[0].1 - 0.05f32).abs() < 1e-3, "{}", dist[0].1);
+
+        assert_eq!(dist[1].0, ALPHA[12]);
+        assert!((dist[1].1 - 0.65f32).abs() < 1e-3, "{}", dist[1].1);
+
+        assert_eq!(dist[2].0, ALPHA[3]);
+        assert!((dist[2].1 - 0.81f32).abs() < 1e-3, "{}", dist[2].1);
+
+        assert_eq!(dist[3].0, ALPHA[21]);
+        assert!((dist[3].1 - 1.3f32).abs() < 1e-3, "{}", dist[3].1);
+
+        assert_eq!(dist[4].0, ALPHA[14]);
+        assert!((dist[4].1 - 1.449f32).abs() < 1e-3, "{}", dist[4].1);
+    }
 }

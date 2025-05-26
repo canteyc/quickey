@@ -1,4 +1,7 @@
-use crate::math::frac;
+use crate::{
+    keyboard::{self, distances, sorted_distances},
+    math::frac,
+};
 use serde::{
     Deserialize, Serialize, Serializer,
     de::{Error, MapAccess, Visitor},
@@ -10,8 +13,38 @@ use std::{
     path::Path,
 };
 
+fn predict(root: &Node, points: Vec<(f32, f32)>) -> Vec<String> {
+    let mut results = vec![];
+    let mut node = root;
+    let mut buf = String::new();
+    for (x, y) in points {
+        let dist = distances(&keyboard::ALPHA, x, y);
+        let probs = dist.iter().map(|(k, d)| {
+            let p = node
+                .children()
+                .find_map(|child| {
+                    if child.c.eq(&k.ch) {
+                        let average_next_usage = frac(child.next_usage, child.next_count) as u32;
+                        Some(frac(child.usage as u32, average_next_usage) as f32 * d)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_default();
+            (k, p)
+        });
+        if let Some((k, _)) =
+            probs.max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Less))
+        {
+            buf.push(char::from_u32(k.ch as u32).unwrap());
+        }
+    }
+    results.push(buf);
+    results
+}
+
 pub struct Node {
-    c: u8,
+    pub c: u8,
     usage: u16,
     next_count: u32,
     next_usage: u32,
@@ -234,5 +267,25 @@ impl<'a, T: PartialOrd> Iterator for SortedSliceIterator<'a, T> {
             self.current += 1;
             Some(n)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::path::PathBuf;
+
+    use super::{Node, predict};
+
+    fn load() -> Node {
+        Node::load_dictionary_from_csv(&PathBuf::from("assets/words_with_usage.csv"))
+    }
+
+    #[test]
+    fn predict_a() {
+        let root = load();
+        let touch = (0.2f32, 1.0f32);
+        let hints = predict(&root, vec![touch]);
+
+        dbg!(&hints);
     }
 }
