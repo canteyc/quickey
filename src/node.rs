@@ -1,6 +1,6 @@
 use crate::{
     keyboard::{self, distances, sorted_distances},
-    math::frac,
+    math::{cmp_f32, frac},
 };
 use serde::{
     Deserialize, Serialize, Serializer,
@@ -19,24 +19,24 @@ fn predict(root: &Node, points: Vec<(f32, f32)>) -> Vec<String> {
     let mut buf = String::new();
     for (x, y) in points {
         let dist = distances(&keyboard::ALPHA, x, y);
-        let probs = dist.iter().map(|(k, d)| {
-            let p = node
-                .children()
-                .find_map(|child| {
-                    if child.c.eq(&k.ch) {
-                        let average_next_usage = frac(child.next_usage, child.next_count) as u32;
-                        Some(frac(child.usage as u32, average_next_usage) as f32 * d)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_default();
-            (k, p)
+        let probs = dist.iter().filter_map(|(k, d)| {
+            let p = node.children().find_map(|child| {
+                if child.c.eq(&k.ch) {
+                    let average_next_usage = frac(child.next_usage, child.next_count) as u32;
+                    Some((
+                        frac(child.usage as u32, average_next_usage) as f32 * d,
+                        child,
+                    ))
+                } else {
+                    None
+                }
+            });
+            p.map(|p| (k, p.0, p.1))
         });
-        if let Some((k, _)) =
-            probs.max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Less))
-        {
-            buf.push(char::from_u32(k.ch as u32).unwrap());
+        dbg!(&probs);
+        if let Some((key, _, child)) = probs.max_by(|a, b| cmp_f32(b.1, a.1)) {
+            buf.push(char::from_u32(key.ch as u32).unwrap());
+            node = child;
         }
     }
     results.push(buf);
@@ -274,6 +274,8 @@ impl<'a, T: PartialOrd> Iterator for SortedSliceIterator<'a, T> {
 mod test {
     use std::path::PathBuf;
 
+    use crate::keyboard;
+
     use super::{Node, predict};
 
     fn load() -> Node {
@@ -283,9 +285,30 @@ mod test {
     #[test]
     fn predict_a() {
         let root = load();
-        let touch = (0.2f32, 1.0f32);
+        let a = keyboard::ALPHA[10];
+        let touch = (a.x + 0.1, a.y + 0.1);
         let hints = predict(&root, vec![touch]);
 
-        dbg!(&hints);
+        assert_eq!(hints[0], "a");
+    }
+
+    #[test]
+    fn predict_an() {
+        let root = load();
+        let a = keyboard::ALPHA[10];
+        let n = keyboard::ALPHA[24];
+        let hints = predict(&root, vec![(a.x, a.y), (n.x, n.y)]);
+
+        assert_eq!(hints[0], "an");
+    }
+
+    #[test]
+    fn type_ab_but_predict_an() {
+        let root = load();
+        let a = keyboard::ALPHA[10];
+        let b = keyboard::ALPHA[23];
+        let hints = predict(&root, vec![(a.x, a.y), (b.x, b.y)]);
+
+        assert_eq!(hints[0], "an");
     }
 }
