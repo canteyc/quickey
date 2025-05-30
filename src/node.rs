@@ -1,5 +1,5 @@
 use crate::{
-    keyboard::{self, distances, sorted_distances},
+    keyboard::{self, distances},
     math::{cmp_f32, frac},
 };
 use serde::{
@@ -8,25 +8,22 @@ use serde::{
     ser::SerializeStruct,
 };
 use std::{
-    fs::{File, write},
+    fs::File,
     io::{BufRead, BufReader},
     path::Path,
 };
 
-fn predict(root: &Node, points: Vec<(f32, f32)>) -> Vec<String> {
+fn predict(root: &Node, points: &[(f32, f32)]) -> Vec<String> {
     let mut results = vec![];
     let mut node = root;
     let mut buf = String::new();
     for (x, y) in points {
-        let dist = distances(&keyboard::ALPHA, x, y);
+        let dist = distances(&keyboard::ALPHA, *x, *y);
         let probs = dist.iter().filter_map(|(k, d)| {
             let p = node.children().find_map(|child| {
                 if child.c.eq(&k.ch) {
                     let average_next_usage = frac(child.next_usage, child.next_count) as u32;
-                    Some((
-                        child.usages() as f32 * (10.0f32 - d),
-                        child,
-                    ))
+                    Some((child.usages() as f32 * (10.0f32 - d), child))
                 } else {
                     None
                 }
@@ -96,7 +93,7 @@ impl Node {
         }
         root
     }
-    
+
     pub fn from_words(words: &[&str]) -> Self {
         let mut root = Node::new(0u8);
         for word in words {
@@ -279,22 +276,12 @@ impl<'a, T: PartialOrd> Iterator for SortedSliceIterator<'a, T> {
 
 #[cfg(test)]
 mod test {
-    use std::path::PathBuf;
-    use std::fs::write;
-
     use crate::keyboard;
 
     use super::{Node, predict};
 
     fn load() -> Node {
-        Node::from_words(&[
-            "a",
-            "an",
-            "apple",
-            "apply",
-            "can",
-            "allow",
-        ])
+        Node::from_words(&["a", "an", "apple", "apply", "can", "allow"])
     }
 
     #[test]
@@ -302,7 +289,7 @@ mod test {
         let root = load();
         let a = keyboard::ALPHA[10];
         let touch = (a.x + 0.1, a.y + 0.1);
-        let hints = predict(&root, vec![touch]);
+        let hints = predict(&root, &[touch]);
 
         assert_eq!(hints[0], "a");
     }
@@ -312,7 +299,7 @@ mod test {
         let root = load();
         let a = keyboard::ALPHA[10];
         let n = keyboard::ALPHA[24];
-        let hints = predict(&root, vec![(a.x, a.y), (n.x, n.y)]);
+        let hints = predict(&root, &[(a.x, a.y), (n.x, n.y)]);
 
         assert_eq!(hints[0], "an");
     }
@@ -322,29 +309,21 @@ mod test {
         let root = load();
         let a = keyboard::ALPHA[10];
         let b = keyboard::ALPHA[23];
-        let hints = predict(&root, vec![(a.x, a.y), (b.x, b.y)]);
+        let hints = predict(&root, &[(a.x, a.y), (b.x, b.y)]);
         assert_eq!(hints[0], "an");
     }
-    
+
     #[test]
     fn type_aollr_but_predict_apple() {
         let root = load();
-        write("root.json", serde_json::to_string_pretty(&root).unwrap());
         let a = keyboard::ALPHA[10];
         let o = keyboard::ALPHA[8];
         let l = keyboard::ALPHA[18];
-        let l = keyboard::ALPHA[18];
         let r = keyboard::ALPHA[3];
-        let hints = predict(&root, vec![
-            (a.x, a.y),
-            (o.x, o.y),
-            (l.x, l.y),
-            (l.x, l.y),
-            (r.x, r.y),
-            ]);
+        let hints = predict(
+            &root,
+            &[(a.x, a.y), (o.x, o.y), (l.x, l.y), (l.x, l.y), (r.x, r.y)],
+        );
         assert_eq!(hints[0], "apple");
-    }
-}
-!(hints[0], "apple");
     }
 }
