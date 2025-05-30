@@ -24,7 +24,7 @@ fn predict(root: &Node, points: Vec<(f32, f32)>) -> Vec<String> {
                 if child.c.eq(&k.ch) {
                     let average_next_usage = frac(child.next_usage, child.next_count) as u32;
                     Some((
-                        frac(child.usage as u32, average_next_usage) as f32 * (10.0f32 - d),
+                        child.usages() as f32 * (10.0f32 - d),
                         child,
                     ))
                 } else {
@@ -93,6 +93,14 @@ impl Node {
             let usage = str::parse(usage).unwrap();
             root.add_usages(word, usage);
             buf.clear();
+        }
+        root
+    }
+    
+    pub fn from_words(words: &[&str]) -> Self {
+        let mut root = Node::new(0u8);
+        for word in words {
+            root.add_usages(word, 1);
         }
         root
     }
@@ -272,13 +280,21 @@ impl<'a, T: PartialOrd> Iterator for SortedSliceIterator<'a, T> {
 #[cfg(test)]
 mod test {
     use std::path::PathBuf;
+    use std::fs::write;
 
     use crate::keyboard;
 
     use super::{Node, predict};
 
     fn load() -> Node {
-        Node::load_dictionary_from_csv(&PathBuf::from("assets/words_with_usage.csv"))
+        Node::from_words(&[
+            "a",
+            "an",
+            "apple",
+            "apply",
+            "can",
+            "allow",
+        ])
     }
 
     #[test]
@@ -308,5 +324,27 @@ mod test {
         let b = keyboard::ALPHA[23];
         let hints = predict(&root, vec![(a.x, a.y), (b.x, b.y)]);
         assert_eq!(hints[0], "an");
+    }
+    
+    #[test]
+    fn type_aollr_but_predict_apple() {
+        let root = load();
+        write("root.json", serde_json::to_string_pretty(&root).unwrap());
+        let a = keyboard::ALPHA[10];
+        let o = keyboard::ALPHA[8];
+        let l = keyboard::ALPHA[18];
+        let l = keyboard::ALPHA[18];
+        let r = keyboard::ALPHA[3];
+        let hints = predict(&root, vec![
+            (a.x, a.y),
+            (o.x, o.y),
+            (l.x, l.y),
+            (l.x, l.y),
+            (r.x, r.y),
+            ]);
+        assert_eq!(hints[0], "apple");
+    }
+}
+!(hints[0], "apple");
     }
 }
