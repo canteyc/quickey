@@ -211,6 +211,16 @@ impl PartialOrd for Node {
     }
 }
 
+impl ToString for Node {
+    fn to_string(&self) -> String {
+        if self.c > 0 {
+            self.char().to_string()
+        } else {
+            String::new()
+        }
+    }
+}
+
 impl<'a, T: PartialOrd> SortedSliceIterator<'a, T> {
     pub fn new(slice: &'a [T]) -> Self {
         let mut order: Vec<usize> = (0..slice.len()).collect();

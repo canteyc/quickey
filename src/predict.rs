@@ -4,7 +4,7 @@ use crate::{
     node::Node,
 };
 
-fn predict(root: &Node, points: &[(f32, f32)]) -> Vec<String> {
+fn _predict(root: &Node, points: &[(f32, f32)]) -> Vec<String> {
     let mut results = vec![];
     let mut node = root;
     let mut buf = String::new();
@@ -29,6 +29,29 @@ fn predict(root: &Node, points: &[(f32, f32)]) -> Vec<String> {
     results
 }
 
+pub fn predict(root: &Node, points: &[(f32, f32)]) -> String {
+    let mut guess = root.to_string();
+    if let Some(((x, y), points)) = points.split_first() {
+        let dist = distances(&keyboard::ALPHA, *x, *y);
+        if let Some((_score, child)) = dist
+            .iter()
+            .filter_map(|(key, distance)| {
+                root.children().find_map(|child| {
+                    if child.c.eq(&key.ch) {
+                        Some((child.usages() as f32 * (10f32 - distance), child))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .max_by(|a, b| cmp_f32(a.0, b.0))
+        {
+            guess = format!("{guess}{}", predict(child, points))
+        }
+    }
+    guess
+}
+
 #[cfg(test)]
 mod test {
     use crate::{keyboard, node::Node};
@@ -46,7 +69,7 @@ mod test {
         let touch = (a.x + 0.1, a.y + 0.1);
         let hints = predict(&root, &[touch]);
 
-        assert_eq!(hints[0], "a");
+        assert_eq!(hints, "a");
     }
 
     #[test]
@@ -56,7 +79,7 @@ mod test {
         let n = keyboard::ALPHA[24];
         let hints = predict(&root, &[(a.x, a.y), (n.x, n.y)]);
 
-        assert_eq!(hints[0], "an");
+        assert_eq!(hints, "an");
     }
 
     #[test]
@@ -65,7 +88,7 @@ mod test {
         let a = keyboard::ALPHA[10];
         let b = keyboard::ALPHA[23];
         let hints = predict(&root, &[(a.x, a.y), (b.x, b.y)]);
-        assert_eq!(hints[0], "an");
+        assert_eq!(hints, "an");
     }
 
     #[test]
@@ -79,6 +102,6 @@ mod test {
             &root,
             &[(a.x, a.y), (o.x, o.y), (l.x, l.y), (l.x, l.y), (r.x, r.y)],
         );
-        assert_eq!(hints[0], "apple");
+        assert_eq!(hints, "apple");
     }
 }
