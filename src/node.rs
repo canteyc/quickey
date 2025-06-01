@@ -28,7 +28,7 @@ impl Node {
     pub fn new(c: u8) -> Self {
         Self {
             c,
-            usage: 1,
+            usage: 0,
             next_count: 0,
             next_usage: 0,
             next: Default::default(),
@@ -89,6 +89,17 @@ impl Node {
 
     pub fn usages(&self) -> i64 {
         self.usage + self.next_usage
+    }
+
+    pub fn usages_at_level(&self, level: usize) -> i64 {
+        if level == 0 {
+            return self.usage;
+        }
+        let mut usages = 0;
+        for child in &self.next {
+            usages += child.usages_at_level(level - 1);
+        }
+        usages
     }
 
     pub fn children(&self) -> SortedSliceIterator<Node> {
@@ -256,5 +267,31 @@ impl<'a, T: PartialOrd> Iterator for SortedSliceIterator<'a, T> {
             self.current += 1;
             Some(n)
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Node;
+
+    fn load() -> Node {
+        Node::from_words(&[
+            "a", "an", "apple", "apply", "can", "allow", "in", "un", "unto", "on", "it", "ln",
+            "ib", "onto", "oh", "obelisk",
+        ])
+    }
+
+    #[test]
+    fn test_usage_levels() {
+        let root = load();
+        assert_eq!(root.usages_at_level(0), 0);
+        assert_eq!(root.usages_at_level(1), 1);
+        assert_eq!(root.usages_at_level(2), 8);
+        assert_eq!(root.usages_at_level(3), 1);
+        assert_eq!(root.usages_at_level(4), 2);
+        assert_eq!(root.usages_at_level(5), 3);
+        assert_eq!(root.usages_at_level(6), 0);
+        assert_eq!(root.usages_at_level(7), 1);
+        assert_eq!(root.usages_at_level(8), 0);
     }
 }

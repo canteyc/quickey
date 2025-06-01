@@ -10,7 +10,9 @@ const SEARCH_RADIUS: i64 = 2000000;
 
 fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
     let mut stack: BTreeMap<i64, Vec<&Node>> = BTreeMap::from([(0i64, vec![root])]);
-    for (x, y) in points {
+    let num_points = points.len();
+    for (i, (x, y)) in points.iter().enumerate() {
+        let remaining_points = num_points - i;
         let dist = distances(&keyboard::ALPHA, *x, *y);
         let scores = stack
             .iter()
@@ -31,7 +33,10 @@ fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
                     }
                     let child = nodes.last().unwrap();
                     if child.c.eq(&key.ch) {
-                        Some((child.usages() * (SEARCH_RADIUS - distance), nodes))
+                        Some((
+                            child.usages_at_level(remaining_points) * (SEARCH_RADIUS - distance),
+                            nodes,
+                        ))
                     } else {
                         None
                     }
@@ -89,11 +94,9 @@ pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
+    use crate::{keyboard, node::Node};
 
-    use crate::{keyboard, node::Node, predict::NUM_HINTS};
-
-    use super::{multi_predict, predict};
+    use super::{NUM_HINTS, multi_predict, predict};
 
     fn load() -> Node {
         Node::from_words(&[
@@ -152,6 +155,7 @@ mod test {
         let n = keyboard::ALPHA[24];
         let hints = multi_predict(&root, &[(i.x, i.y), (n.x, n.y)]);
         assert_eq!(hints.len(), NUM_HINTS, "{:?}", &hints);
+        dbg!(&hints);
         let mut iter = hints.iter();
         assert_eq!(iter.next(), Some(&"on".to_string()));
         assert_eq!(iter.next(), Some(&"un".to_string()));
