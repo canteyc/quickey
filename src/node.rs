@@ -4,6 +4,7 @@ use serde::{
     ser::SerializeStruct,
 };
 use std::{
+    fmt::Display,
     fs::File,
     io::{BufRead, BufReader},
     path::Path,
@@ -11,9 +12,9 @@ use std::{
 
 pub struct Node {
     pub c: u8,
-    usage: u16,
-    next_count: u32,
-    next_usage: u32,
+    usage: i64,
+    next_count: i64,
+    next_usage: i64,
     next: Vec<Node>,
 }
 
@@ -86,18 +87,18 @@ impl Node {
         self.next.get_mut(index).unwrap()
     }
 
-    pub fn usages(&self) -> u32 {
-        self.usage as u32 + self.next_usage
+    pub fn usages(&self) -> i64 {
+        self.usage + self.next_usage
     }
 
     pub fn children(&self) -> SortedSliceIterator<Node> {
         SortedSliceIterator::new(&self.next)
     }
 
-    pub fn add_usages(&mut self, word: &str, usage: u16) {
+    pub fn add_usages(&mut self, word: &str, usage: i64) {
         let mut node = self;
         for ch in word.bytes() {
-            node.next_usage += usage as u32;
+            node.next_usage += usage;
             node = node.link(ch);
         }
         node.usage += usage;
@@ -211,13 +212,17 @@ impl PartialOrd for Node {
     }
 }
 
-impl ToString for Node {
-    fn to_string(&self) -> String {
-        if self.c > 0 {
-            self.char().to_string()
-        } else {
-            String::new()
-        }
+impl Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            if self.c > 0 {
+                self.char().to_string()
+            } else {
+                String::new()
+            },
+        )
     }
 }
 

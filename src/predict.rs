@@ -1,50 +1,98 @@
+use std::collections::BTreeMap;
+
 use crate::{
     keyboard::{self, distances},
-    math::cmp_f32,
     node::Node,
 };
 
-fn _predict(root: &Node, points: &[(f32, f32)]) -> Vec<String> {
-    let mut results = vec![];
-    let mut node = root;
-    let mut buf = String::new();
+const NUM_HINTS: usize = 3;
+const SEARCH_RADIUS: i64 = 2000000;
+
+fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
+    let mut stack: BTreeMap<i64, Vec<&Node>> = BTreeMap::from([(0i64, vec![root])]);
     for (x, y) in points {
         let dist = distances(&keyboard::ALPHA, *x, *y);
-        let probs = dist.iter().filter_map(|(k, d)| {
-            let p = node.children().find_map(|child| {
-                if child.c.eq(&k.ch) {
-                    Some((child.usages() as f32 * (10.0f32 - d), child))
-                } else {
-                    None
-                }
-            });
-            p.map(|p| (k, p.0, p.1))
-        });
-        if let Some((key, _, child)) = probs.max_by(|a, b| cmp_f32(a.1, b.1)) {
-            buf.push(char::from_u32(key.ch as u32).unwrap());
-            node = child;
-        }
-    }
-    results.push(buf);
-    results
-}
-
-pub fn predict(root: &Node, points: &[(f32, f32)]) -> String {
-    let mut guess = root.to_string();
-    if let Some(((x, y), points)) = points.split_first() {
-        let dist = distances(&keyboard::ALPHA, *x, *y);
-        if let Some((_score, child)) = dist
+        let scores = stack
             .iter()
-            .filter_map(|(key, distance)| {
-                root.children().find_map(|child| {
+            .rev()
+            .flat_map(|(_, nodes)| {
+                nodes.last().unwrap().children().map(|c| {
+                    let mut nodes = nodes.clone();
+                    nodes.push(c);
+                    nodes
+                })
+            })
+            .filter_map(|nodes| {
+                dist.iter().find_map(move |(key, distance)| {
+                    let nodes = nodes.clone();
+                    if *distance > SEARCH_RADIUS {
+                        return None;
+                    }
+                    let child = nodes.last().unwrap();
                     if child.c.eq(&key.ch) {
-                        Some((child.usages() as f32 * (10f32 - distance), child))
+                        Some((child.usages() * (SEARCH_RADIUS - distance), nodes))
                     } else {
                         None
                     }
                 })
             })
-            .max_by(|a, b| cmp_f32(a.0, b.0))
+            .collect::<Vec<_>>();
+        stack.clear();
+        dbg!(
+            scores
+                .iter()
+                .map(|s| {
+                    if s.1.len() > 2 {
+                        (s.0, s.1[1].to_string(), s.1[2].to_string())
+                    } else {
+                        (s.0, s.1[1].to_string(), String::new())
+                    }
+                })
+                .collect::<Vec<_>>()
+        );
+        for (i, (mut score, mut nodes)) in scores.into_iter().enumerate() {
+            if i >= NUM_HINTS {
+                break;
+            }
+            while let Some(existing) = stack.insert(score, nodes) {
+                // If there was already a value here, put it back in with a slightly higher score
+                // so they stay ordered
+                score += 1;
+                nodes = existing;
+            }
+        }
+    }
+    stack
+        .values()
+        .rev()
+        .map(|nodes| {
+            nodes
+                .iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join("")
+        })
+        .collect::<Vec<_>>()
+}
+
+pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
+    let mut guess = root.to_string();
+    if let Some(((x, y), points)) = points.split_first() {
+        if let Some((_score, child)) = distances(&keyboard::ALPHA, *x, *y)
+            .iter()
+            .filter_map(|(key, distance)| {
+                if *distance > SEARCH_RADIUS {
+                    return None;
+                }
+                root.children().find_map(|child| {
+                    if child.c.eq(&key.ch) {
+                        Some((child.usages() * (SEARCH_RADIUS - distance), child))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .max_by_key(|(score, _)| *score)
         {
             guess = format!("{guess}{}", predict(child, points))
         }
@@ -54,19 +102,22 @@ pub fn predict(root: &Node, points: &[(f32, f32)]) -> String {
 
 #[cfg(test)]
 mod test {
-    use crate::{keyboard, node::Node};
+    use crate::{keyboard, node::Node, predict::NUM_HINTS};
 
-    use super::predict;
+    use super::{multi_predict, predict};
 
     fn load() -> Node {
-        Node::from_words(&["a", "an", "apple", "apply", "can", "allow"])
+        Node::from_words(&[
+            "a", "an", "apple", "apply", "can", "allow", "in", "un", "unto", "on", "it", "ln",
+            "ib", "onto", "oh", "obelisk",
+        ])
     }
 
     #[test]
     fn predict_a() {
         let root = load();
         let a = keyboard::ALPHA[10];
-        let touch = (a.x + 0.1, a.y + 0.1);
+        let touch = (a.x + 100, a.y + 100);
         let hints = predict(&root, &[touch]);
 
         assert_eq!(hints, "a");
@@ -103,5 +154,18 @@ mod test {
             &[(a.x, a.y), (o.x, o.y), (l.x, l.y), (l.x, l.y), (r.x, r.y)],
         );
         assert_eq!(hints, "apple");
+    }
+
+    #[test]
+    fn multi_predict_in_as_un_in_on() {
+        let root = load();
+        let i = keyboard::ALPHA[7];
+        let n = keyboard::ALPHA[24];
+        let hints = multi_predict(&root, &[(i.x, i.y), (n.x, n.y)]);
+        assert_eq!(hints.len(), NUM_HINTS, "{:?}", &hints);
+        let mut iter = hints.iter();
+        assert_eq!(iter.next(), Some(&"on".to_string()));
+        assert_eq!(iter.next(), Some(&"in".to_string()));
+        assert_eq!(iter.next(), Some(&"un".to_string()));
     }
 }
