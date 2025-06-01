@@ -15,6 +15,7 @@ fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
         let scores = stack
             .iter()
             .rev()
+            .take(NUM_HINTS)
             .flat_map(|(_, nodes)| {
                 nodes.last().unwrap().children().map(|c| {
                     let mut nodes = nodes.clone();
@@ -38,22 +39,7 @@ fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
             })
             .collect::<Vec<_>>();
         stack.clear();
-        dbg!(
-            scores
-                .iter()
-                .map(|s| {
-                    if s.1.len() > 2 {
-                        (s.0, s.1[1].to_string(), s.1[2].to_string())
-                    } else {
-                        (s.0, s.1[1].to_string(), String::new())
-                    }
-                })
-                .collect::<Vec<_>>()
-        );
-        for (i, (mut score, mut nodes)) in scores.into_iter().enumerate() {
-            if i >= NUM_HINTS {
-                break;
-            }
+        for (mut score, mut nodes) in scores.into_iter() {
             while let Some(existing) = stack.insert(score, nodes) {
                 // If there was already a value here, put it back in with a slightly higher score
                 // so they stay ordered
@@ -65,6 +51,7 @@ fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
     stack
         .values()
         .rev()
+        .take(NUM_HINTS)
         .map(|nodes| {
             nodes
                 .iter()
@@ -102,6 +89,8 @@ pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
 
 #[cfg(test)]
 mod test {
+    use std::collections::BTreeMap;
+
     use crate::{keyboard, node::Node, predict::NUM_HINTS};
 
     use super::{multi_predict, predict};
@@ -165,7 +154,7 @@ mod test {
         assert_eq!(hints.len(), NUM_HINTS, "{:?}", &hints);
         let mut iter = hints.iter();
         assert_eq!(iter.next(), Some(&"on".to_string()));
-        assert_eq!(iter.next(), Some(&"in".to_string()));
         assert_eq!(iter.next(), Some(&"un".to_string()));
+        assert_eq!(iter.next(), Some(&"in".to_string()));
     }
 }
