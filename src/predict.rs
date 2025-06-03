@@ -1,5 +1,7 @@
 use std::collections::BTreeMap;
 
+use log::debug;
+
 use crate::{
     keyboard::{self, distances},
     node::Node,
@@ -8,24 +10,24 @@ use crate::{
 const NUM_HINTS: usize = 3;
 const SEARCH_RADIUS: i64 = 2000000;
 
-fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
+pub fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
     let mut stack: BTreeMap<i64, Vec<&Node>> = BTreeMap::from([(0i64, vec![root])]);
     let num_points = points.len();
     for (i, (x, y)) in points.iter().enumerate() {
-        let remaining_points = num_points - i;
+        let remaining_points = num_points - i - 1;
         let dist = distances(&keyboard::ALPHA, *x, *y);
         let scores = stack
             .iter()
             .rev()
             .take(NUM_HINTS)
-            .flat_map(|(_, nodes)| {
-                nodes.last().unwrap().children().map(|c| {
+            .flat_map(|(prev_score, nodes)| {
+                nodes.last().unwrap().children().map(move |c| {
                     let mut nodes = nodes.clone();
                     nodes.push(c);
-                    nodes
+                    (prev_score, nodes)
                 })
             })
-            .filter_map(|nodes| {
+            .filter_map(|(prev_score, nodes)| {
                 dist.iter().find_map(move |(key, distance)| {
                     let nodes = nodes.clone();
                     if *distance > SEARCH_RADIUS {
@@ -33,8 +35,12 @@ fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
                     }
                     let child = nodes.last().unwrap();
                     if child.c.eq(&key.ch) {
+                        let u = child.usages_at_level(remaining_points);
+                        debug!(
+                            "[{i}] {child}\nlevel: {remaining_points}\nusages: {u}\ndistance: {distance}",
+                        );
                         Some((
-                            child.usages_at_level(remaining_points) * (SEARCH_RADIUS - distance),
+                            prev_score + u * (SEARCH_RADIUS - distance),
                             nodes,
                         ))
                     } else {
@@ -51,6 +57,14 @@ fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
                 score += 1;
                 nodes = existing;
             }
+        }
+        for (score, nodes) in &stack {
+            let word = nodes
+                .iter()
+                .map(|n| n.to_string())
+                .reduce(|acc, c| acc + &c)
+                .unwrap_or_default();
+            debug!("[{i}] {word}: {score}");
         }
     }
     stack
@@ -94,14 +108,19 @@ pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Once;
+
     use crate::{keyboard, node::Node};
 
     use super::{NUM_HINTS, multi_predict, predict};
 
+    static INIT_LOG: Once = Once::new();
+
     fn load() -> Node {
+        INIT_LOG.call_once(|| colog::basic_builder().is_test(true).init());
         Node::from_words(&[
             "a", "an", "apple", "apply", "can", "allow", "in", "un", "unto", "on", "it", "ln",
-            "ib", "onto", "oh", "obelisk",
+            "onto", "oh", "obelisk",
         ])
     }
 
@@ -157,8 +176,8 @@ mod test {
         assert_eq!(hints.len(), NUM_HINTS, "{:?}", &hints);
         dbg!(&hints);
         let mut iter = hints.iter();
+        assert_eq!(iter.next(), Some(&"in".to_string()));
         assert_eq!(iter.next(), Some(&"on".to_string()));
         assert_eq!(iter.next(), Some(&"un".to_string()));
-        assert_eq!(iter.next(), Some(&"in".to_string()));
     }
 }

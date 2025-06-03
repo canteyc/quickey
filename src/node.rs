@@ -7,6 +7,7 @@ use std::{
     fmt::Display,
     fs::File,
     io::{BufRead, BufReader},
+    ops::Deref,
     path::Path,
 };
 
@@ -36,14 +37,13 @@ impl Node {
     }
 
     pub fn load_dictionary_from_txt(dict_file: &Path) -> Node {
-        let mut dict_reader = BufReader::new(File::open(dict_file).unwrap());
-        let mut buf = String::with_capacity(32);
-        let mut root = Node::new(0u8);
-        while dict_reader.read_line(&mut buf).is_ok_and(|s| s > 0) {
-            root.add_usages(&buf, 1);
-            buf.clear();
-        }
-        root
+        let dict_reader = BufReader::new(File::open(dict_file).unwrap());
+        let words = dict_reader
+            .lines()
+            .map_while(Result::ok)
+            .collect::<Vec<String>>();
+        let ref_words: Vec<&str> = words.iter().map(Deref::deref).collect();
+        Self::from_words(&ref_words)
     }
 
     pub fn load_dictionary_from_json(dict_json: &Path) -> Node {
