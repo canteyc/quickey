@@ -15,7 +15,7 @@ pub fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
     let num_points = points.len();
     for (i, (x, y)) in points.iter().enumerate() {
         let remaining_points = num_points - i - 1;
-        let dist = distances(&keyboard::ALPHA, *x, *y);
+        let dist = distances(&keyboard::qwerty::LAYOUT, *x, *y);
         let scores = stack
             .iter()
             .rev()
@@ -84,7 +84,7 @@ pub fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
 pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
     let mut guess = root.to_string();
     if let Some(((x, y), points)) = points.split_first() {
-        if let Some((_score, child)) = distances(&keyboard::ALPHA, *x, *y)
+        if let Some((_score, child)) = distances(&keyboard::qwerty::LAYOUT, *x, *y)
             .iter()
             .filter_map(|(key, distance)| {
                 if *distance > SEARCH_RADIUS {
@@ -127,7 +127,7 @@ mod test {
     #[test]
     fn predict_a() {
         let root = load();
-        let a = keyboard::ALPHA[10];
+        let a = keyboard::qwerty::A;
         let touch = (a.x + 100, a.y + 100);
         let hints = predict(&root, &[touch]);
 
@@ -137,8 +137,8 @@ mod test {
     #[test]
     fn predict_an() {
         let root = load();
-        let a = keyboard::ALPHA[10];
-        let n = keyboard::ALPHA[24];
+        let a = keyboard::qwerty::A;
+        let n = keyboard::qwerty::N;
         let hints = predict(&root, &[(a.x, a.y), (n.x, n.y)]);
 
         assert_eq!(hints, "an");
@@ -147,8 +147,8 @@ mod test {
     #[test]
     fn type_ab_but_predict_an() {
         let root = load();
-        let a = keyboard::ALPHA[10];
-        let b = keyboard::ALPHA[23];
+        let a = keyboard::qwerty::A;
+        let b = keyboard::qwerty::B;
         let hints = predict(&root, &[(a.x, a.y), (b.x, b.y)]);
         assert_eq!(hints, "an");
     }
@@ -156,10 +156,10 @@ mod test {
     #[test]
     fn type_aollr_but_predict_apple() {
         let root = load();
-        let a = keyboard::ALPHA[10];
-        let o = keyboard::ALPHA[8];
-        let l = keyboard::ALPHA[18];
-        let r = keyboard::ALPHA[3];
+        let a = keyboard::qwerty::A;
+        let o = keyboard::qwerty::O;
+        let l = keyboard::qwerty::L;
+        let r = keyboard::qwerty::R;
         let hints = predict(
             &root,
             &[(a.x, a.y), (o.x, o.y), (l.x, l.y), (l.x, l.y), (r.x, r.y)],
@@ -170,8 +170,8 @@ mod test {
     #[test]
     fn multi_predict_in_as_un_in_on() {
         let root = load();
-        let i = keyboard::ALPHA[7];
-        let n = keyboard::ALPHA[24];
+        let i = keyboard::qwerty::I;
+        let n = keyboard::qwerty::N;
         let hints = multi_predict(&root, &[(i.x, i.y), (n.x, n.y)]);
         assert_eq!(hints.len(), NUM_HINTS, "{:?}", &hints);
         dbg!(&hints);
