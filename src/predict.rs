@@ -4,18 +4,19 @@ use log::debug;
 
 use crate::{
     keyboard::{self, distances},
+    math::Point,
     node::Node,
 };
 
-const NUM_HINTS: usize = 3;
+const NUM_HINTS: usize = 6;
 const SEARCH_RADIUS: i64 = 2000000;
 
-pub fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
+pub fn multi_predict(root: &Node, points: &[Point]) -> Vec<String> {
     let mut stack: BTreeMap<i64, Vec<&Node>> = BTreeMap::from([(0i64, vec![root])]);
     let num_points = points.len();
-    for (i, (x, y)) in points.iter().enumerate() {
+    for (i, point) in points.iter().enumerate() {
         let remaining_points = num_points - i - 1;
-        let dist = distances(&keyboard::qwerty::LAYOUT, *x, *y);
+        let dist = distances(&keyboard::qwerty::LAYOUT, *point);
         let scores = stack
             .iter()
             .rev()
@@ -81,10 +82,10 @@ pub fn multi_predict(root: &Node, points: &[(i64, i64)]) -> Vec<String> {
         .collect::<Vec<_>>()
 }
 
-pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
+pub fn predict(root: &Node, points: &[Point]) -> String {
     let mut guess = root.to_string();
-    if let Some(((x, y), points)) = points.split_first() {
-        if let Some((_score, child)) = distances(&keyboard::qwerty::LAYOUT, *x, *y)
+    if let Some((point, rem_points)) = points.split_first() {
+        if let Some((_score, child)) = distances(&keyboard::qwerty::LAYOUT, *point)
             .iter()
             .filter_map(|(key, distance)| {
                 if *distance > SEARCH_RADIUS {
@@ -100,7 +101,7 @@ pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
             })
             .max_by_key(|(score, _)| *score)
         {
-            guess = format!("{guess}{}", predict(child, points))
+            guess = format!("{guess}{}", predict(child, rem_points))
         }
     }
     guess
@@ -110,7 +111,7 @@ pub fn predict(root: &Node, points: &[(i64, i64)]) -> String {
 mod test {
     use std::sync::Once;
 
-    use crate::{keyboard, node::Node};
+    use crate::{keyboard, math::Point, node::Node};
 
     use super::{NUM_HINTS, multi_predict, predict};
 
@@ -128,7 +129,7 @@ mod test {
     fn predict_a() {
         let root = load();
         let a = keyboard::qwerty::A;
-        let touch = (a.x + 100, a.y + 100);
+        let touch = a.loc + Point(100, 100);
         let hints = predict(&root, &[touch]);
 
         assert_eq!(hints, "a");
@@ -139,7 +140,7 @@ mod test {
         let root = load();
         let a = keyboard::qwerty::A;
         let n = keyboard::qwerty::N;
-        let hints = predict(&root, &[(a.x, a.y), (n.x, n.y)]);
+        let hints = predict(&root, &[a.loc, n.loc]);
 
         assert_eq!(hints, "an");
     }
@@ -149,7 +150,7 @@ mod test {
         let root = load();
         let a = keyboard::qwerty::A;
         let b = keyboard::qwerty::B;
-        let hints = predict(&root, &[(a.x, a.y), (b.x, b.y)]);
+        let hints = predict(&root, &[a.loc, b.loc]);
         assert_eq!(hints, "an");
     }
 
@@ -160,10 +161,7 @@ mod test {
         let o = keyboard::qwerty::O;
         let l = keyboard::qwerty::L;
         let r = keyboard::qwerty::R;
-        let hints = predict(
-            &root,
-            &[(a.x, a.y), (o.x, o.y), (l.x, l.y), (l.x, l.y), (r.x, r.y)],
-        );
+        let hints = predict(&root, &[a.loc, o.loc, l.loc, l.loc, r.loc]);
         assert_eq!(hints, "apple");
     }
 
@@ -172,7 +170,7 @@ mod test {
         let root = load();
         let i = keyboard::qwerty::I;
         let n = keyboard::qwerty::N;
-        let hints = multi_predict(&root, &[(i.x, i.y), (n.x, n.y)]);
+        let hints = multi_predict(&root, &[i.loc, n.loc]);
         assert_eq!(hints.len(), NUM_HINTS, "{:?}", &hints);
         dbg!(&hints);
         let mut iter = hints.iter();

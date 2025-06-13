@@ -42,13 +42,17 @@ fn main() {
             console::Key::PageUp => todo!(),
             console::Key::PageDown => todo!(),
             console::Key::Char(c) => {
-                points.push(
-                    qwerty::LAYOUT
-                        .iter()
-                        .find(|key| key.ch == c as u8)
-                        .unwrap()
-                        .xy(),
-                );
+                if c.eq(&' ') {
+                    points.clear();
+                } else {
+                    points.push(
+                        qwerty::LAYOUT
+                            .iter()
+                            .find(|key| key.ch == c as u8)
+                            .unwrap()
+                            .loc,
+                    );
+                }
             }
             console::Key::CtrlC => exit(0),
             _ => exit(1),

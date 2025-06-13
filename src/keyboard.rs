@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::math::distance_sq;
+use crate::math::Point;
 
 pub const ROW_X: [i64; 3] = [0, 200, 700];
 pub const ROX_Y: [i64; 3] = [0, 1000, 2000];
@@ -8,21 +8,15 @@ pub const ROX_Y: [i64; 3] = [0, 1000, 2000];
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Key {
     pub ch: u8,
-    pub x: i64,
-    pub y: i64,
+    pub loc: Point,
 }
 
 impl Key {
     pub const fn new(ch: u8, col: usize, row: usize) -> Self {
         Key {
             ch,
-            x: ROW_X[row] + (col as i64 * 1000),
-            y: ROX_Y[row],
+            loc: Point(ROW_X[row] + (col as i64 * 1000), ROX_Y[row]),
         }
-    }
-
-    pub fn xy(&self) -> (i64, i64) {
-        (self.x, self.y)
     }
 }
 
@@ -97,53 +91,51 @@ pub mod qwerty {
     ];
 }
 
-pub fn distances(keys: &[Key], x: i64, y: i64) -> Vec<(Key, i64)> {
-    keys.iter()
-        .map(|k| (*k, distance_sq(k.xy(), (x, y))))
-        .collect()
+pub fn distances(keys: &[Key], point: Point) -> Vec<(Key, i64)> {
+    keys.iter().map(|k| (*k, k.loc.dist_sq(point))).collect()
 }
 
-pub fn nearest(keys: &[Key], x: i64, y: i64) -> Key {
-    sorted_distances(keys, x, y)[0].0
+pub fn nearest(keys: &[Key], point: Point) -> Key {
+    sorted_distances(keys, point)[0].0
 }
 
-pub fn sorted_distances(keys: &[Key], x: i64, y: i64) -> Vec<(Key, i64)> {
-    let mut dist = distances(keys, x, y);
-    dist.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Less));
+pub fn sorted_distances(keys: &[Key], point: Point) -> Vec<(Key, i64)> {
+    let mut dist = distances(keys, point);
+    dist.sort_unstable_by_key(|a| a.1);
     dist
 }
 
 #[cfg(test)]
 mod test {
-    use crate::keyboard::sorted_distances;
+    use crate::{keyboard::sorted_distances, math::Point};
 
     use super::{nearest, qwerty};
 
     #[test]
     fn nearest_on_key() {
-        let touch = (3200, 1000); // f key
-        let dist = nearest(&qwerty::LAYOUT, touch.0, touch.1);
+        let touch = Point(3200, 1000); // f key
+        let dist = nearest(&qwerty::LAYOUT, touch);
         assert_eq!(dist, qwerty::F);
     }
 
     #[test]
     fn nearest_on_row() {
-        let touch = (3000, 1000); // between d and f key
-        let dist = nearest(&qwerty::LAYOUT, touch.0, touch.1);
+        let touch = Point(3000, 1000); // between d and f key
+        let dist = nearest(&qwerty::LAYOUT, touch);
         assert_eq!(dist, qwerty::F);
     }
 
     #[test]
     fn nearest_between_rows() {
-        let touch = (3000, 800); // f key
-        let dist = nearest(&qwerty::LAYOUT, touch.0, touch.1);
+        let touch = Point(3000, 800); // f key
+        let dist = nearest(&qwerty::LAYOUT, touch);
         assert_eq!(dist, qwerty::F);
     }
 
     #[test]
     fn distances() {
-        let touch = (3000, 900); // f key
-        let dist = sorted_distances(&qwerty::LAYOUT, touch.0, touch.1);
+        let touch = Point(3000, 900); // f key
+        let dist = sorted_distances(&qwerty::LAYOUT, touch);
         assert_eq!(dist[0].0, qwerty::F);
         assert_eq!(dist[0].1, 50000, "{}", dist[0].1);
 
