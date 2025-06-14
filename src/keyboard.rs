@@ -21,6 +21,8 @@ impl Key {
 }
 
 pub mod qwerty {
+    use phf::phf_map;
+
     use super::Key;
     //    Key { ch: b'`', shifted: b'~', x: 0000, y: 0000 },
     //    Key { ch: b'1', shifted: b'~', x: 0000, y: 0000 },
@@ -89,6 +91,35 @@ pub mod qwerty {
     pub const LAYOUT: [Key; 26] = [
         Q, W, E, R, T, Y, U, I, O, P, A, S, D, F, G, H, J, K, L, Z, X, C, V, B, N, M,
     ];
+
+    pub static MAP: phf::Map<u8, Key> = phf_map! {
+        b'q' => Q,
+        b'w' => W,
+        b'e' => E,
+        b'r' => R,
+        b't' => T,
+        b'y' => Y,
+        b'u' => U,
+        b'i' => I,
+        b'o' => O,
+        b'p' => P,
+        b'a' => A,
+        b's' => S,
+        b'd' => D,
+        b'f' => F,
+        b'g' => G,
+        b'h' => H,
+        b'j' => J,
+        b'k' => K,
+        b'l' => L,
+        b'z' => Z,
+        b'x' => X,
+        b'c' => C,
+        b'v' => V,
+        b'b' => B,
+        b'n' => N,
+        b'm' => M,
+    };
 }
 
 pub fn distances(keys: &[Key], point: Point) -> Vec<(Key, i64)> {

@@ -1,12 +1,36 @@
 use std::collections::BTreeMap;
 
 use log::debug;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     keyboard::{self, distances},
     math::Point,
     node::Node,
 };
+
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+struct Score(i64);
+
+pub fn search_predict(root: &Node, points: &[Point]) -> Vec<String> {
+    let results = vec![];
+    let num_points = points.len();
+    let mut stack: BTreeMap<Score, Vec<&Node>> = BTreeMap::from([(Score(0i64), vec![root])]);
+
+    while let Some((score, node)) = stack.pop_last() {}
+
+    results
+}
+
+fn average_score(nodes: &[&Node], points: &[Point]) -> Score {
+    Score(
+        nodes
+            .iter()
+            .zip(points)
+            .map(|(node, point)| point.dist_sq(keyboard::qwerty::MAP.get(&node.c).unwrap().loc))
+            .sum::<i64>(),
+    )
+}
 
 const NUM_HINTS: usize = 6;
 const SEARCH_RADIUS: i64 = 2000000;
