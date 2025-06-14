@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-struct Score(i64);
+pub struct Score(i64);
 
 pub fn search_predict(root: &Node, points: &[Point]) -> Vec<String> {
     let results = vec![];
@@ -22,13 +22,16 @@ pub fn search_predict(root: &Node, points: &[Point]) -> Vec<String> {
     results
 }
 
-fn average_score(nodes: &[&Node], points: &[Point]) -> Score {
+pub fn average_score(nodes: &[&Node], points: &[Point]) -> Score {
     Score(
         nodes
             .iter()
             .zip(points)
-            .map(|(node, point)| point.dist_sq(keyboard::qwerty::MAP.get(&node.c).unwrap().loc))
-            .sum::<i64>(),
+            .map(|(node, point)| {
+                SEARCH_RADIUS - point.dist_sq(keyboard::qwerty::MAP.get(&node.c).unwrap().loc)
+            })
+            .sum::<i64>()
+            / nodes.len() as i64,
     )
 }
 
@@ -135,7 +138,12 @@ pub fn predict(root: &Node, points: &[Point]) -> String {
 mod test {
     use std::sync::Once;
 
-    use crate::{keyboard, math::Point, node::Node};
+    use crate::{
+        keyboard,
+        math::Point,
+        node::Node,
+        predict::{SEARCH_RADIUS, Score, average_score},
+    };
 
     use super::{NUM_HINTS, multi_predict, predict};
 
@@ -201,5 +209,30 @@ mod test {
         assert_eq!(iter.next(), Some(&"in".to_string()));
         assert_eq!(iter.next(), Some(&"on".to_string()));
         assert_eq!(iter.next(), Some(&"un".to_string()));
+    }
+
+    #[test]
+    fn average_score_for_aollr_to_apple() {
+        let nodes = vec![
+            Node::new(b'a'),
+            Node::new(b'p'),
+            Node::new(b'p'),
+            Node::new(b'l'),
+            Node::new(b'e'),
+        ];
+        let nodes = nodes.iter().collect::<Vec<&Node>>();
+
+        let points = vec![
+            keyboard::qwerty::A.loc,
+            keyboard::qwerty::O.loc,
+            keyboard::qwerty::L.loc,
+            keyboard::qwerty::L.loc,
+            keyboard::qwerty::R.loc,
+        ];
+
+        let expected = Score(SEARCH_RADIUS - 400);
+        let score = average_score(&nodes, &points);
+
+        assert_eq!(score, expected);
     }
 }
