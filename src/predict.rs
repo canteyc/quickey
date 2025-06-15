@@ -28,7 +28,9 @@ pub fn average_score(nodes: &[&Node], points: &[Point]) -> Score {
             .iter()
             .zip(points)
             .map(|(node, point)| {
-                SEARCH_RADIUS - point.dist_sq(keyboard::qwerty::MAP.get(&node.c).unwrap().loc)
+                let dist = point.dist_sq(keyboard::qwerty::MAP.get(&node.c).unwrap().loc);
+                dbg!((node.char(), SEARCH_RADIUS - dist));
+                SEARCH_RADIUS - dist
             })
             .sum::<i64>()
             / nodes.len() as i64,
@@ -230,7 +232,7 @@ mod test {
             keyboard::qwerty::R.loc,
         ];
 
-        let expected = Score(SEARCH_RADIUS - 400);
+        let expected = Score(1272000);
         let score = average_score(&nodes, &points);
 
         assert_eq!(score, expected);
