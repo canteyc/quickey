@@ -6,18 +6,30 @@ use serde::{Deserialize, Serialize};
 use crate::{
     keyboard::{self, distances},
     math::Point,
-    node::Node,
+    node::{self, Node},
 };
 
 #[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Score(i64);
 
 pub fn search_predict(root: &Node, points: &[Point]) -> Vec<String> {
-    let results = vec![];
+    let mut results = vec![];
     let num_points = points.len();
-    let mut stack: BTreeMap<Score, Vec<&Node>> = BTreeMap::from([(Score(0i64), vec![root])]);
+    let mut stack: BTreeMap<Score, Vec<&Node>> = BTreeMap::from_iter(root.children().map(|child| {
+        let nodes = vec![child];
+        (average_score(&nodes, points), nodes)
+    }));
 
-    while let Some((score, node)) = stack.pop_last() {}
+    for _ in 0..num_points {
+        let (_, nodes) = stack.pop_last().unwrap();
+        for child in nodes.last().unwrap().children() {
+            let mut next_nodes = nodes.clone();
+            next_nodes.push(child);
+            let next_score = average_score(&next_nodes, points);
+            stack.insert(next_score, next_nodes);
+        }
+    }
+    results.extend(stack.values().rev().take(NUM_HINTS).map(|value| node::to_string(value)));
 
     results
 }
@@ -28,7 +40,11 @@ pub fn average_score(nodes: &[&Node], points: &[Point]) -> Score {
             .iter()
             .zip(points)
             .map(|(node, point)| {
-                let dist = point.dist_sq(keyboard::qwerty::MAP.get(&node.c).unwrap().loc);
+                let dist = if let Some(key) = keyboard::qwerty::MAP.get(&node.c) {
+                    point.dist_sq(key.loc)
+                } else {
+                    panic!("{node}")
+                };
                 dbg!((node.char(), SEARCH_RADIUS - dist));
                 SEARCH_RADIUS - dist
             })

@@ -116,6 +116,10 @@ impl Node {
     }
 }
 
+pub fn to_string(nodes: &[&Node]) -> String {
+    String::from_iter(nodes.iter().map(|n| n.to_string()))
+}
+
 impl Serialize for Node {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where

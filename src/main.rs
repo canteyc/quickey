@@ -1,6 +1,6 @@
 use quickey::keyboard::qwerty;
 use quickey::node::Node;
-use quickey::predict::multi_predict;
+use quickey::predict::{multi_predict, search_predict};
 use std::path::PathBuf;
 use std::process::exit;
 use std::time::SystemTime;
@@ -27,7 +27,7 @@ fn main() {
             console::Key::ArrowUp => todo!(),
             console::Key::ArrowDown => todo!(),
             console::Key::Enter => todo!(),
-            console::Key::Escape => todo!(),
+            console::Key::Escape => break,
             console::Key::Backspace => {
                 points.pop();
             }
@@ -37,7 +37,7 @@ fn main() {
             console::Key::BackTab => todo!(),
             console::Key::Alt => todo!(),
             console::Key::Del => todo!(),
-            console::Key::Shift => todo!(),
+            console::Key::Shift => {},
             console::Key::Insert => todo!(),
             console::Key::PageUp => todo!(),
             console::Key::PageDown => todo!(),
@@ -46,9 +46,7 @@ fn main() {
                     points.clear();
                 } else {
                     points.push(
-                        qwerty::LAYOUT
-                            .iter()
-                            .find(|key| key.ch == c as u8)
+                        qwerty::MAP.get(&(c as u8))
                             .unwrap()
                             .loc,
                     );
@@ -58,7 +56,7 @@ fn main() {
             _ => exit(1),
         }
 
-        let hints = multi_predict(&root, &points);
+        let hints = search_predict(&root, &points);
         println!("{}", hints.join("\t"));
     }
 }
